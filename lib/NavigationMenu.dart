@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/AnimalsScreen.dart';
+import 'screens/MachinesScreen.dart';
 
 class NavigationMenu extends StatefulWidget {
   const NavigationMenu({super.key});
@@ -14,7 +15,7 @@ class _NavigationMenuState extends State<NavigationMenu> {
 
   final List<Widget> screens = [
     const SizedBox.shrink(),
-    const SizedBox.shrink(),
+    const MachinesScreen(),
     const MyAnimalsPage(),
     const SizedBox.shrink(),
   ];

@@ -7,8 +7,12 @@ class Machine {
   int openTimes;
   static int counter = 0;
 
-
-  Machine(this.animalID, this.userID, this.openTimes): machineID= counter++;
+  Machine({
+    required this.machineID,
+    required this.animalID,
+    required this.userID,
+    required this.openTimes,
+  });
 
   void openFood() {
 
