@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import '../services/database_service.dart';
 
 class AnimalDetailsPage extends StatefulWidget {
   final Map<String, dynamic> animal;
+  final String? petId;
 
   const AnimalDetailsPage({
     super.key,
     required this.animal,
+    this.petId,
   });
 
   @override
@@ -21,15 +25,16 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
   late TextEditingController breedController;
   late TextEditingController feedAmountController;
   File? selectedImage;
+  final DatabaseService _databaseService = DatabaseService();
 
   @override
   void initState() {
     super.initState();
     isEditing = false;
     nameController = TextEditingController(text: widget.animal['name'] ?? '');
-    ageController = TextEditingController(text: widget.animal['age'].toString() ?? '');
+    ageController = TextEditingController(text: '${widget.animal['age'] ?? 0}');
     breedController = TextEditingController(text: widget.animal['breed'] ?? '');
-    feedAmountController = TextEditingController(text: widget.animal['feedAmount'].toString() ?? '');
+    feedAmountController = TextEditingController(text: '${widget.animal['feedAmount'] ?? 0.0}');
 
     // Initialize selectedImage if it exists
     if (widget.animal['image'] != null) {
@@ -65,17 +70,73 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
     }
   }
 
-  void _toggleEditMode() {
-    setState(() {
-      if (isEditing) {
-        // Save changes
+  void _toggleEditMode() async {
+    if (isEditing) {
+      // Save changes
+      try {
+        if (widget.petId != null) {
+          String? imageUrl = widget.animal['imageUrl'];
+
+          // Upload new image if selected
+          if (selectedImage != null && !selectedImage!.path.startsWith('http')) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Uploading image...'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+            imageUrl = await _databaseService.uploadImage(
+              selectedImage!,
+              nameController.text.trim(),
+            );
+          }
+
+          // Save to Firestore
+          await _databaseService.updatePet(
+            petId: widget.petId!,
+            name: nameController.text.trim(),
+            age: int.tryParse(ageController.text) ?? widget.animal['age'],
+            breed: breedController.text.trim(),
+            feedAmount: double.tryParse(feedAmountController.text) ?? widget.animal['feedAmount'],
+            imageUrl: imageUrl,
+          );
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Animal updated successfully!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+
+        // Update local state
         widget.animal['name'] = nameController.text;
         widget.animal['age'] = int.tryParse(ageController.text) ?? widget.animal['age'];
         widget.animal['breed'] = breedController.text;
         widget.animal['feedAmount'] = double.tryParse(feedAmountController.text) ?? widget.animal['feedAmount'];
+
+        setState(() {
+          isEditing = !isEditing;
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
-      isEditing = !isEditing;
-    });
+    } else {
+      setState(() {
+        isEditing = !isEditing;
+      });
+    }
   }
 
   @override
@@ -148,11 +209,31 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                                           fit: BoxFit.cover,
                                         ),
                                       )
-                                    : const Icon(
-                                        Icons.pets,
-                                        size: 50,
-                                        color: Colors.grey,
-                                      ),
+                                    : widget.animal['imageUrl'] != null && widget.animal['imageUrl'].toString().isNotEmpty
+                                        ? ClipOval(
+                                            child: Image.network(
+                                              widget.animal['imageUrl'],
+                                              fit: BoxFit.cover,
+                                              loadingBuilder: (context, child, loadingProgress) {
+                                                if (loadingProgress == null) return child;
+                                                return const Center(
+                                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                                );
+                                              },
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return const Icon(
+                                                  Icons.pets,
+                                                  size: 50,
+                                                  color: Colors.grey,
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.pets,
+                                            size: 50,
+                                            color: Colors.grey,
+                                          ),
                               ),
                             ),
                           ),

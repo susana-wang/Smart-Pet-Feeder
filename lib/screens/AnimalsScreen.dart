@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'AnimalDetailsPage.dart' show AnimalDetailsPage;
+import '../services/database_service.dart';
 
 class MyAnimalsPage extends StatefulWidget {
   const MyAnimalsPage({super.key});
@@ -11,22 +13,7 @@ class MyAnimalsPage extends StatefulWidget {
 }
 
 class _MyAnimalsPageState extends State<MyAnimalsPage> {
-  List<Map<String, dynamic>> animals = [
-    {
-      'name': 'Max',
-      'age': 3,
-      'breed': 'Golden Retriever',
-      'feedAmount': 2.5,
-      'image': null,
-    },
-    {
-      'name': 'Luna',
-      'age': 2,
-      'breed': 'Siamese Cat',
-      'feedAmount': 1.0,
-      'image': null,
-    },
-  ];
+  final DatabaseService _databaseService = DatabaseService();
 
   void _showAddEditModal({Map<String, dynamic>? animal, int? index}) {
     final nameController = TextEditingController(text: animal?['name'] ?? '');
@@ -196,39 +183,67 @@ class _MyAnimalsPageState extends State<MyAnimalsPage> {
                             child: MouseRegion(
                               cursor: SystemMouseCursors.click,
                               child: ElevatedButton(
-                                onPressed: () {
-                                  final validationError = validateForm();
-                                  if (validationError != null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(validationError),
-                                        backgroundColor: Colors.red,
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                    return;
-                                  }
+                                 onPressed: () async {
+                                    final validationError = validateForm();
+                                    if (validationError != null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(validationError),
+                                          backgroundColor: Colors.red,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                      return;
+                                    }
 
-                                  if (animal == null) {
-                                    animals.add({
-                                      'name': nameController.text.trim(),
-                                      'age': int.parse(ageController.text.trim()),
-                                      'breed': breedController.text.trim(),
-                                      'feedAmount': double.parse(feedAmountController.text.trim()),
-                                      'image': selectedImage?.path,
-                                    });
-                                  } else {
-                                    animals[index!] = {
-                                      'name': nameController.text.trim(),
-                                      'age': int.parse(ageController.text.trim()),
-                                      'breed': breedController.text.trim(),
-                                      'feedAmount': double.parse(feedAmountController.text.trim()),
-                                      'image': selectedImage?.path,
-                                    };
-                                  }
-                                  setState(() {});
-                                  Navigator.pop(context);
-                                },
+                                    try {
+                                      String? imageUrl;
+
+                                      // Upload image if selected
+                                      if (selectedImage != null) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Uploading image...'),
+                                            duration: Duration(seconds: 1),
+                                          ),
+                                        );
+                                        imageUrl = await _databaseService.uploadImage(
+                                          selectedImage!,
+                                          nameController.text.trim(),
+                                        );
+                                      }
+
+                                      // Save to Firestore
+                                      await _databaseService.addPet(
+                                        name: nameController.text.trim(),
+                                        age: int.parse(ageController.text.trim()),
+                                        breed: breedController.text.trim(),
+                                        feedAmount: double.parse(feedAmountController.text.trim()),
+                                        imageUrl: imageUrl,
+                                      );
+
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Animal added successfully!'),
+                                            backgroundColor: Colors.green,
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                        Navigator.pop(context);
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Error: $e'),
+                                            backgroundColor: Colors.red,
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue[900],
                                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -272,129 +287,182 @@ class _MyAnimalsPageState extends State<MyAnimalsPage> {
               ),
             ),
           ),
-          // Content Area
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.85,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 24,
-                ),
-                itemCount: animals.length + 1,
-                itemBuilder: (context, index) {
-                  // Add Animal Card
-                  if (index == 0) {
-                    return MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () => _showAddEditModal(),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 160,
-                              height: 160,
-                            decoration: BoxDecoration(
-                              color: Colors.blue[100],
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.blue[700]!, width: 2),
-                            ),
-                            child: Center(
-                              child: Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.blue[700],
-                                ),
-                                  child: const Icon(
-                                    Icons.add,
-                                    color: Colors.white,
-                                    size: 48,
+           // Content Area
+           Expanded(
+             child: Padding(
+               padding: const EdgeInsets.all(16.0),
+               child: StreamBuilder<QuerySnapshot>(
+                 stream: _databaseService.getPetsStream(),
+                 builder: (context, snapshot) {
+                   // Loading state
+                   if (snapshot.connectionState == ConnectionState.waiting) {
+                     return const Center(
+                       child: CircularProgressIndicator(),
+                     );
+                   }
+
+                   // Error state
+                   if (snapshot.hasError) {
+                     return Center(
+                       child: Text('Error: ${snapshot.error}'),
+                     );
+                   }
+
+                   // Get the documents
+                   final docs = snapshot.data?.docs ?? [];
+                   final petCount = docs.length;
+
+                   return GridView.builder(
+                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                       crossAxisCount: 2,
+                       childAspectRatio: 0.85,
+                       crossAxisSpacing: 20,
+                       mainAxisSpacing: 24,
+                     ),
+                     itemCount: petCount + 1,
+                     itemBuilder: (context, index) {
+                       // Add Animal Card (always first)
+                       if (index == 0) {
+                         return MouseRegion(
+                           cursor: SystemMouseCursors.click,
+                           child: GestureDetector(
+                             onTap: () => _showAddEditModal(),
+                             child: Column(
+                               mainAxisAlignment: MainAxisAlignment.center,
+                               children: [
+                                 Container(
+                                   width: 160,
+                                   height: 160,
+                                   decoration: BoxDecoration(
+                                     color: Colors.blue[100],
+                                     borderRadius: BorderRadius.circular(16),
+                                     border: Border.all(color: Colors.blue[700]!, width: 2),
+                                   ),
+                                   child: Center(
+                                     child: Container(
+                                       width: 80,
+                                       height: 80,
+                                       decoration: BoxDecoration(
+                                         shape: BoxShape.circle,
+                                         color: Colors.blue[700],
+                                       ),
+                                       child: const Icon(
+                                         Icons.add,
+                                         color: Colors.white,
+                                         size: 48,
+                                       ),
+                                     ),
+                                   ),
+                                 ),
+                                 const SizedBox(height: 12),
+                                 const Text(
+                                   'Add',
+                                   style: TextStyle(
+                                     fontWeight: FontWeight.bold,
+                                     fontSize: 16,
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ),
+                         );
+                       }
+
+                       // Animal Cards from Firestore
+                       final doc = docs[index - 1];
+                       final petData = doc.data() as Map<String, dynamic>;
+                       final petId = doc.id;
+
+                       return MouseRegion(
+                         cursor: SystemMouseCursors.click,
+                         child: GestureDetector(
+                           onTap: () {
+                             // Navigate to AnimalDetailsPage with Firestore data
+                             Navigator.push(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => AnimalDetailsPage(
+                                   animal: petData,
+                                   petId: petId,
+                                 ),
+                               ),
+                             );
+                           },
+                           child: Column(
+                             mainAxisAlignment: MainAxisAlignment.center,
+                             children: [
+                                Container(
+                                  width: 160,
+                                  height: 160,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.grey.shade300, width: 1),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: petData['imageUrl'] != null && petData['imageUrl'].toString().isNotEmpty
+                                        ? Image.network(
+                                            petData['imageUrl'],
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return const Center(
+                                                child: CircularProgressIndicator(),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Center(
+                                                child: Container(
+                                                  width: 110,
+                                                  height: 110,
+                                                  decoration: const BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.pets,
+                                                    size: 56,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          )
+                                        : Center(
+                                            child: Container(
+                                              width: 110,
+                                              height: 110,
+                                              decoration: const BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: Colors.grey,
+                                              ),
+                                              child: const Icon(
+                                                Icons.pets,
+                                                size: 56,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Add',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  // Animal Cards
-                  final animal = animals[index - 1];
-                  return MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AnimalDetailsPage(animal: animal),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 160,
-                            height: 160,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey.shade300, width: 1),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: animal['image'] != null && File(animal['image']).existsSync()
-                                  ? Image.file(
-                                      File(animal['image']),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Center(
-                                      child: Container(
-                                        width: 110,
-                                        height: 110,
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Colors.grey,
-                                        ),
-                                        child: const Icon(
-                                          Icons.pets,
-                                          size: 56,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            animal['name'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
+                               const SizedBox(height: 12),
+                               Text(
+                                 petData['name'] ?? 'Unknown',
+                                 style: const TextStyle(
+                                   fontWeight: FontWeight.bold,
+                                   fontSize: 16,
+                                 ),
+                               ),
+                             ],
+                           ),
+                         ),
+                       );
+                     },
+                   );
+                 },
+               ),
+             ),
+           ),
         ],
       ),
     );
