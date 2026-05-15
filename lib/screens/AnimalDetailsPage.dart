@@ -54,6 +54,7 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 80,
+
     );
 
     if (image != null) {
@@ -82,11 +83,11 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
     return Scaffold(
       body: Column(
         children: [
-          // Custom Top Bar
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            color: Colors.deepPurple,
+           // Custom Top Bar
+           Container(
+             width: double.infinity,
+             padding: const EdgeInsets.symmetric(vertical: 16),
+             color: Colors.blue[700],
             child: Row(
               children: [
                 MouseRegion(
@@ -211,7 +212,7 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                                   onTap: _toggleEditMode,
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.deepPurple,
+                                      color: Colors.blue[700],
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     padding: const EdgeInsets.symmetric(
@@ -292,7 +293,7 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                                   },
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.deepPurple,
+                                      color: Colors.blue[700],
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     padding: const EdgeInsets.symmetric(
@@ -313,39 +314,43 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'No machines',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ),
+                           Center(
+                             child: Text(
+                               'No machines',
+                               style: TextStyle(
+                                 color: Colors.grey.shade600,
+                                 fontSize: 14,
+                               ),
+                             ),
+                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 24),
 
                     // Meals Report Section
-                    const Text(
-                      'Meals Report:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Meals Report:',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildMealsReportContent(),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _buildMealsReportSection(),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -407,12 +412,74 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMealsReportContent() {
+    List<Map<String, dynamic>> meals = [];
+
+    if (meals.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'Empty',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: meals.map((meal) {
+        final date = meal['date'] ?? 'N/A';
+        final amount = meal['amount'] ?? 0.0;
+        final difference = meal['difference'] ?? 0.0;
+        final isDifferencePositive = difference >= 0;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                date,
+                style: const TextStyle(fontSize: 12),
+              ),
+              Text(
+                '$amount kg',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${isDifferencePositive ? '+' : ''}$difference kg',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDifferencePositive ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 

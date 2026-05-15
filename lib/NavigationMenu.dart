@@ -30,8 +30,8 @@ class _NavigationMenuState extends State<NavigationMenu> {
             _currentIndex = index;
           });
         },
-        selectedItemColor: Colors.deepPurple,
-        unselectedItemColor: Colors.deepPurple.withOpacity(0.6),
+        selectedItemColor: Colors.blue[700],
+        unselectedItemColor: Colors.blue[700]!.withOpacity(0.6),
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
