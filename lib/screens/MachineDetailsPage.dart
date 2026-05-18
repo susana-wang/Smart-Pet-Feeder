@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-
-// Assumindo que a classe Machine está no mesmo projeto
-// import 'machine_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MachineDetailsPage extends StatefulWidget {
-  final Map<String, dynamic> machineData; // Dados vindos da lista/DB
-  final String ownerName; // Nome do dono (imutável)
+  final Map<String, dynamic> machineData;
+  final String ownerName;
+  final String machineDocId;
 
   const MachineDetailsPage({
     super.key,
     required this.machineData,
     required this.ownerName,
+    required this.machineDocId,
   });
 
   @override
@@ -56,10 +56,12 @@ class _MachineDetailsPageState extends State<MachineDetailsPage> {
 
   Map<String, dynamic>? linkedAnimal;
   List<TimeOfDay> feedingTimes = [];
+  late final FirebaseFirestore _firestore;
 
   @override
   void initState() {
     super.initState();
+    _firestore = FirebaseFirestore.instance;
     isEditing = false;
 
     // O ID da máquina e o Utilizador são apenas leitura, por isso não precisam de controllers
@@ -244,6 +246,7 @@ class _MachineDetailsPageState extends State<MachineDetailsPage> {
         feedAmountController.text = (linkedAnimal!['feedAmount'] != null) ? linkedAnimal!['feedAmount'].toString() : feedAmountController.text;
       });
 
+      _saveToFirebase();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Máquina vinculada a ${selected['name']}')));
     }
   }
@@ -257,7 +260,27 @@ class _MachineDetailsPageState extends State<MachineDetailsPage> {
       breedController.text = widget.machineData['breed'] ?? '';
       feedAmountController.text = widget.machineData['feedAmount']?.toString() ?? '0.0';
     });
+    _saveToFirebase();
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Máquina desvinculada')));
+  }
+
+  Future<void> _saveToFirebase() async {
+    try {
+      await _firestore.collection('machines').doc(widget.machineDocId).update({
+        'linkedAnimalID': linkedAnimal?['id'],
+        'linkedAnimalData': linkedAnimal,
+        'feedAmount': double.tryParse(feedAmountController.text) ?? 0.0,
+        'openTimes': feedingTimes.length,
+        'feedingSchedule': feedingTimes.map((t) => '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}').toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao guardar: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _showEditFeedingDialog() async {
@@ -405,6 +428,7 @@ class _MachineDetailsPageState extends State<MachineDetailsPage> {
         widget.machineData['linkedAnimal'] = linkedAnimal;
       }
 
+      _saveToFirebase();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Configuração de alimentação atualizada')));
     }
   }
@@ -476,8 +500,6 @@ class _MachineDetailsPageState extends State<MachineDetailsPage> {
           children: [
             _buildField("Nome do Animal", animalNameController, !isEditing),
             const SizedBox(height: 10),
-            _buildField("Raça", breedController, !isEditing),
-            const SizedBox(height: 12),
             const Divider(),
             const SizedBox(height: 8),
             // Linked animal status and actions

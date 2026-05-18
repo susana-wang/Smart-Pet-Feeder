@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'MachineDetailsPage.dart';
+import '../services/database_service.dart';
 
 class MachinesScreen extends StatefulWidget {
   const MachinesScreen({super.key});
@@ -10,20 +12,14 @@ class MachinesScreen extends StatefulWidget {
 }
 
 class _MachinesScreenState extends State<MachinesScreen> {
-  // Simulação de dados vindos da sua classe Machine
-  // Na vida real, isto viria de uma base de dados ou Provider
-  List<Map<String, dynamic>> machines = [
-    {
-      'machineID': 101,
-      'userID': 'user_01',
-      'status': 'Online',
-    },
-    {
-      'machineID': 102,
-      'userID': 'user_01',
-      'status': 'Offline',
-    },
-  ];
+  final DatabaseService _databaseService = DatabaseService();
+  late Stream<QuerySnapshot> _machinesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _machinesStream = _databaseService.getAvailableMachinesStream();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,22 +53,42 @@ class _MachinesScreenState extends State<MachinesScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.8,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: machines.length + 1,
-                itemBuilder: (context, index) {
-                  // Card para Adicionar/Vincular nova Máquina
-                  if (index == 0) {
-                    return _buildAddMachineCard();
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _machinesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
 
-                  final machine = machines[index - 1];
-                  return _buildMachineCard(machine);
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text('Erro ao carregar máquinas: ${snapshot.error}'),
+                    );
+                  }
+
+                  final machines = snapshot.data?.docs ?? [];
+
+                  return GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.8,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: machines.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return _buildAddMachineCard();
+                      }
+
+                      final machineDoc = machines[index - 1];
+                      final machineData = {
+                        'docId': machineDoc.id,
+                        ...machineDoc.data() as Map<String, dynamic>
+                      };
+                      return _buildMachineCard(machineData);
+                    },
+                  );
                 },
               ),
             ),
@@ -113,35 +129,55 @@ class _MachinesScreenState extends State<MachinesScreen> {
     );
   }
 
-  void _addNewMachine() {
-    // Gera um novo ID de máquina
-    int newMachineID = (machines.map((m) => m['machineID'] as int).fold<int>(0, (a, b) => a > b ? a : b)) + 1;
-
-    setState(() {
-      machines.add({
-        'machineID': newMachineID,
+  void _addNewMachine() async {
+    try {
+      // Gera um novo documento no Firebase em 'machines'
+      final docRef = FirebaseFirestore.instance.collection('machines').doc();
+      await docRef.set({
         'userID': 'user_01',
         'status': 'Online',
+        'createdAt': FieldValue.serverTimestamp(),
+        'linkedAnimalID': null,
+        'linkedAnimalData': null,
+        'feedAmount': 0.0,
+        'openTimes': 0,
+        'feedingSchedule': [],
       });
-    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Máquina #$newMachineID adicionada com sucesso!'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Máquina adicionada com sucesso!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao adicionar máquina: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildMachineCard(Map<String, dynamic> machine) {
     bool isOnline = machine['status'] == 'Online';
+    final machineDocId = machine['docId'] ?? '';
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => MachineDetailsPage(machineData: machine, ownerName: "Utilizador Principal"),
+            builder: (context) => MachineDetailsPage(
+              machineData: machine,
+              ownerName: "Utilizador Principal",
+              machineDocId: machineDocId,
+            ),
           ),
         );
       },
@@ -175,7 +211,7 @@ class _MachinesScreenState extends State<MachinesScreen> {
             const SizedBox(height: 10),
             // Texto info
             Text(
-              'Máquina #${machine['machineID']}',
+              'Máquina #${machineDocId.substring(0, 6)}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 4),
