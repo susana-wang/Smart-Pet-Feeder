@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'screens/AnimalsScreen.dart';
-import 'screens/MachinesScreen.dart';
 
 class NavigationMenu extends StatefulWidget {
   const NavigationMenu({super.key});
@@ -15,7 +14,7 @@ class _NavigationMenuState extends State<NavigationMenu> {
 
   final List<Widget> screens = [
     const SizedBox.shrink(),
-    const MachinesScreen(),
+    const SizedBox.shrink(),
     const MyAnimalsPage(),
     const SizedBox.shrink(),
   ];
@@ -31,8 +30,8 @@ class _NavigationMenuState extends State<NavigationMenu> {
             _currentIndex = index;
           });
         },
-        selectedItemColor: Colors.blue[700],
-        unselectedItemColor: Colors.blue[700]!.withOpacity(0.6),
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.deepPurple.withOpacity(0.6),
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(

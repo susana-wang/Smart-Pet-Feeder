@@ -70,74 +70,235 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
     }
   }
 
-  void _toggleEditMode() async {
-    if (isEditing) {
-      // Save changes
-      try {
-        if (widget.petId != null) {
-          String? imageUrl = widget.animal['imageUrl'];
+   void _toggleEditMode() async {
+     if (isEditing) {
+       // Save changes
+       try {
+         if (widget.petId != null) {
+           // Save to Firestore
+           await _databaseService.updatePet(
+             petId: widget.petId!,
+             name: nameController.text.trim(),
+             age: int.tryParse(ageController.text) ?? widget.animal['age'],
+             breed: breedController.text.trim(),
+             feedAmount: double.tryParse(feedAmountController.text) ?? widget.animal['feedAmount'],
+           );
 
-          // Upload new image if selected
-          if (selectedImage != null && !selectedImage!.path.startsWith('http')) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Uploading image...'),
-                duration: Duration(seconds: 1),
+           if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(
+                 content: Text('Animal updated successfully!'),
+                 backgroundColor: Colors.green,
+                 duration: Duration(seconds: 2),
+               ),
+             );
+           }
+         }
+
+         // Update local state
+         widget.animal['name'] = nameController.text;
+         widget.animal['age'] = int.tryParse(ageController.text) ?? widget.animal['age'];
+         widget.animal['breed'] = breedController.text;
+         widget.animal['feedAmount'] = double.tryParse(feedAmountController.text) ?? widget.animal['feedAmount'];
+
+         setState(() {
+           isEditing = !isEditing;
+         });
+       } catch (e) {
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: Text('Error: $e'),
+               backgroundColor: Colors.red,
+               duration: const Duration(seconds: 2),
+             ),
+           );
+         }
+       }
+     } else {
+       setState(() {
+         isEditing = !isEditing;
+       });
+      }
+    }
+
+    void _showAddMachineDialog() {
+      showDialog(
+        context: context,
+        builder: (dialogContext) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Select a Machine',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.maxFinite,
+                    height: 400,
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: _databaseService.getAvailableMachinesStream(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text('Error: ${snapshot.error}'),
+                          );
+                        }
+
+                        final machines = snapshot.data?.docs ?? [];
+
+                        if (machines.isEmpty) {
+                          return const Center(
+                            child: Text('No machines yet'),
+                          );
+                        }
+
+                        return GridView.builder(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.85,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: machines.length,
+                          itemBuilder: (context, index) {
+                            final machineData = machines[index].data() as Map<String, dynamic>;
+                            final machineName = machineData['name'] ?? 'Unknown';
+                            final machineType = machineData['type'] ?? 'No type';
+
+                            return MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () async {
+                                  try {
+                                    if (widget.petId != null) {
+                                      await _databaseService.addMachine(
+                                        petId: widget.petId!,
+                                        machineName: machineName,
+                                        machineType: machineType,
+                                      );
+
+                                      if (mounted) {
+                                        Navigator.pop(dialogContext);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Machine added successfully!'),
+                                            backgroundColor: Colors.green,
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error: $e'),
+                                          backgroundColor: Colors.red,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue[100],
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.devices,
+                                          size: 32,
+                                          color: Colors.blue[700],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                        child: Text(
+                                          machineName,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                        child: Text(
+                                          machineType,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.blue[700]!),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      child: Text(
+                        'Close',
+                        style: TextStyle(color: Colors.blue[700], fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            );
-            imageUrl = await _databaseService.uploadImage(
-              selectedImage!,
-              nameController.text.trim(),
-            );
-          }
-
-          // Save to Firestore
-          await _databaseService.updatePet(
-            petId: widget.petId!,
-            name: nameController.text.trim(),
-            age: int.tryParse(ageController.text) ?? widget.animal['age'],
-            breed: breedController.text.trim(),
-            feedAmount: double.tryParse(feedAmountController.text) ?? widget.animal['feedAmount'],
-            imageUrl: imageUrl,
-          );
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Animal updated successfully!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        }
-
-        // Update local state
-        widget.animal['name'] = nameController.text;
-        widget.animal['age'] = int.tryParse(ageController.text) ?? widget.animal['age'];
-        widget.animal['breed'] = breedController.text;
-        widget.animal['feedAmount'] = double.tryParse(feedAmountController.text) ?? widget.animal['feedAmount'];
-
-        setState(() {
-          isEditing = !isEditing;
-        });
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 2),
             ),
           );
-        }
-      }
-    } else {
-      setState(() {
-        isEditing = !isEditing;
-      });
+        },
+      );
     }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +331,60 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 48),
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.white),
+                    onPressed: () {
+                      // Show delete confirmation dialog
+                      showDialog(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Delete Animal'),
+                          content: Text('Are you sure you want to delete ${widget.animal['name']}?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                try {
+                                  if (widget.petId != null) {
+                                    await _databaseService.deletePet(widget.petId!);
+                                    if (mounted) {
+                                      Navigator.pop(dialogContext);
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Animal deleted successfully!'),
+                                          backgroundColor: Colors.green,
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    Navigator.pop(dialogContext);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: Colors.red,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -209,31 +423,11 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                                           fit: BoxFit.cover,
                                         ),
                                       )
-                                    : widget.animal['imageUrl'] != null && widget.animal['imageUrl'].toString().isNotEmpty
-                                        ? ClipOval(
-                                            child: Image.network(
-                                              widget.animal['imageUrl'],
-                                              fit: BoxFit.cover,
-                                              loadingBuilder: (context, child, loadingProgress) {
-                                                if (loadingProgress == null) return child;
-                                                return const Center(
-                                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                                );
-                                              },
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return const Icon(
-                                                  Icons.pets,
-                                                  size: 50,
-                                                  color: Colors.grey,
-                                                );
-                                              },
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.pets,
-                                            size: 50,
-                                            color: Colors.grey,
-                                          ),
+                                    : const Icon(
+                                        Icons.pets,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
                               ),
                             ),
                           ),
@@ -344,69 +538,213 @@ class _AnimalDetailsPageState extends State<AnimalDetailsPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Machines Section
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Machines:',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    print('Add machine');
-                                    // TODO: Implement add machine functionality
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue[700],
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    child: const Text(
-                                      'Add',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                           Center(
-                             child: Text(
-                               'No machines',
-                               style: TextStyle(
-                                 color: Colors.grey.shade600,
-                                 fontSize: 14,
+                     // Machines Section
+                     Container(
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade50,
+                         borderRadius: BorderRadius.circular(12),
+                         border: Border.all(color: Colors.grey.shade200),
+                       ),
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Row(
+                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                             children: [
+                               const Text(
+                                 'Machines:',
+                                 style: TextStyle(
+                                   fontSize: 18,
+                                   fontWeight: FontWeight.bold,
+                                 ),
+                               ),
+                               MouseRegion(
+                                 cursor: SystemMouseCursors.click,
+                                 child: GestureDetector(
+                                   onTap: () => _showAddMachineDialog(),
+                                   child: Container(
+                                     decoration: BoxDecoration(
+                                       color: Colors.blue[700],
+                                       borderRadius: BorderRadius.circular(8),
+                                     ),
+                                     padding: const EdgeInsets.symmetric(
+                                       horizontal: 12,
+                                       vertical: 6,
+                                     ),
+                                     child: const Text(
+                                       'Add',
+                                       style: TextStyle(
+                                         color: Colors.white,
+                                         fontSize: 12,
+                                         fontWeight: FontWeight.bold,
+                                       ),
+                                     ),
+                                   ),
+                                 ),
+                               ),
+                             ],
+                           ),
+                           const SizedBox(height: 12),
+                           if (widget.petId != null)
+                             StreamBuilder<QuerySnapshot>(
+                               stream: _databaseService.getMachinesStream(widget.petId!),
+                               builder: (context, snapshot) {
+                                 if (snapshot.connectionState == ConnectionState.waiting) {
+                                   return const Center(
+                                     child: Padding(
+                                       padding: EdgeInsets.all(16.0),
+                                       child: CircularProgressIndicator(),
+                                     ),
+                                   );
+                                 }
+
+                                 if (snapshot.hasError) {
+                                   return Center(
+                                     child: Padding(
+                                       padding: const EdgeInsets.all(16.0),
+                                       child: Text('Error: ${snapshot.error}'),
+                                     ),
+                                   );
+                                 }
+
+                                 final machines = snapshot.data?.docs ?? [];
+
+                                 if (machines.isEmpty) {
+                                   return Center(
+                                     child: Padding(
+                                       padding: const EdgeInsets.all(16.0),
+                                       child: Text(
+                                         'No machines yet',
+                                         style: TextStyle(
+                                           color: Colors.grey.shade600,
+                                           fontSize: 14,
+                                         ),
+                                       ),
+                                     ),
+                                   );
+                                 }
+
+                                 return Column(
+                                   children: machines.map((machineDoc) {
+                                     final machineData = machineDoc.data() as Map<String, dynamic>;
+                                     final machineId = machineDoc.id;
+
+                                     return Container(
+                                       margin: const EdgeInsets.only(bottom: 8),
+                                       padding: const EdgeInsets.all(12),
+                                       decoration: BoxDecoration(
+                                         color: Colors.white,
+                                         borderRadius: BorderRadius.circular(8),
+                                         border: Border.all(color: Colors.grey.shade200),
+                                       ),
+                                       child: Row(
+                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                         children: [
+                                           Expanded(
+                                             child: Column(
+                                               crossAxisAlignment: CrossAxisAlignment.start,
+                                               children: [
+                                                 Text(
+                                                   machineData['name'] ?? 'Unknown',
+                                                   style: const TextStyle(
+                                                     fontWeight: FontWeight.bold,
+                                                     fontSize: 14,
+                                                   ),
+                                                 ),
+                                                 const SizedBox(height: 4),
+                                                 Text(
+                                                   machineData['type'] ?? 'No type',
+                                                   style: TextStyle(
+                                                     color: Colors.grey.shade600,
+                                                     fontSize: 12,
+                                                   ),
+                                                 ),
+                                               ],
+                                             ),
+                                           ),
+                                           MouseRegion(
+                                             cursor: SystemMouseCursors.click,
+                                             child: GestureDetector(
+                                               onTap: () {
+                                                 // Delete machine
+                                                 showDialog(
+                                                   context: context,
+                                                   builder: (dialogContext) => AlertDialog(
+                                                     title: const Text('Delete Machine'),
+                                                     content: Text('Are you sure you want to delete ${machineData['name']}?'),
+                                                     actions: [
+                                                       TextButton(
+                                                         onPressed: () => Navigator.pop(dialogContext),
+                                                         child: const Text('Cancel'),
+                                                       ),
+                                                       TextButton(
+                                                         onPressed: () async {
+                                                           try {
+                                                             await _databaseService.deleteMachine(widget.petId!, machineId);
+                                                             if (mounted) {
+                                                               Navigator.pop(dialogContext);
+                                                               ScaffoldMessenger.of(context).showSnackBar(
+                                                                 const SnackBar(
+                                                                   content: Text('Machine deleted successfully!'),
+                                                                   backgroundColor: Colors.green,
+                                                                   duration: Duration(seconds: 2),
+                                                                 ),
+                                                               );
+                                                             }
+                                                           } catch (e) {
+                                                             if (mounted) {
+                                                               Navigator.pop(dialogContext);
+                                                               ScaffoldMessenger.of(context).showSnackBar(
+                                                                 SnackBar(
+                                                                   content: Text('Error: $e'),
+                                                                   backgroundColor: Colors.red,
+                                                                   duration: const Duration(seconds: 2),
+                                                                 ),
+                                                               );
+                                                             }
+                                                           }
+                                                         },
+                                                         child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                                       ),
+                                                     ],
+                                                   ),
+                                                 );
+                                               },
+                                               child: Container(
+                                                 padding: const EdgeInsets.all(6),
+                                                 decoration: BoxDecoration(
+                                                   color: Colors.red.withOpacity(0.1),
+                                                   borderRadius: BorderRadius.circular(6),
+                                                 ),
+                                                 child: const Icon(
+                                                   Icons.delete,
+                                                   color: Colors.red,
+                                                   size: 18,
+                                                 ),
+                                               ),
+                                             ),
+                                           ),
+                                         ],
+                                       ),
+                                     );
+                                   }).toList(),
+                                 );
+                               },
+                             )
+                           else
+                             Center(
+                               child: Text(
+                                 'No machines yet',
+                                 style: TextStyle(
+                                   color: Colors.grey.shade600,
+                                   fontSize: 14,
+                                 ),
                                ),
                              ),
-                           ),
-                        ],
-                      ),
-                    ),
+                         ],
+                       ),
+                     ),
                     const SizedBox(height: 24),
 
                     // Meals Report Section

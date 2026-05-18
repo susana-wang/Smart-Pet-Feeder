@@ -184,66 +184,48 @@ class _MyAnimalsPageState extends State<MyAnimalsPage> {
                               cursor: SystemMouseCursors.click,
                               child: ElevatedButton(
                                  onPressed: () async {
-                                    final validationError = validateForm();
-                                    if (validationError != null) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(validationError),
-                                          backgroundColor: Colors.red,
-                                          duration: const Duration(seconds: 2),
-                                        ),
-                                      );
-                                      return;
-                                    }
+                                   final validationError = validateForm();
+                                   if (validationError != null) {
+                                     ScaffoldMessenger.of(context).showSnackBar(
+                                       SnackBar(
+                                         content: Text(validationError),
+                                         backgroundColor: Colors.red,
+                                         duration: const Duration(seconds: 2),
+                                       ),
+                                     );
+                                     return;
+                                   }
 
-                                    try {
-                                      String? imageUrl;
+                                   try {
+                                     await _databaseService.addPet(
+                                       name: nameController.text.trim(),
+                                       age: int.parse(ageController.text.trim()),
+                                       breed: breedController.text.trim(),
+                                       feedAmount: double.parse(feedAmountController.text.trim()),
+                                     );
 
-                                      // Upload image if selected
-                                      if (selectedImage != null) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Uploading image...'),
-                                            duration: Duration(seconds: 1),
-                                          ),
-                                        );
-                                        imageUrl = await _databaseService.uploadImage(
-                                          selectedImage!,
-                                          nameController.text.trim(),
-                                        );
-                                      }
-
-                                      // Save to Firestore
-                                      await _databaseService.addPet(
-                                        name: nameController.text.trim(),
-                                        age: int.parse(ageController.text.trim()),
-                                        breed: breedController.text.trim(),
-                                        feedAmount: double.parse(feedAmountController.text.trim()),
-                                        imageUrl: imageUrl,
-                                      );
-
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Animal added successfully!'),
-                                            backgroundColor: Colors.green,
-                                            duration: Duration(seconds: 2),
-                                          ),
-                                        );
-                                        Navigator.pop(context);
-                                      }
-                                    } catch (e) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Error: $e'),
-                                            backgroundColor: Colors.red,
-                                            duration: const Duration(seconds: 2),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
+                                     if (mounted) {
+                                       ScaffoldMessenger.of(context).showSnackBar(
+                                         const SnackBar(
+                                           content: Text('Animal added successfully!'),
+                                           backgroundColor: Colors.green,
+                                           duration: Duration(seconds: 2),
+                                         ),
+                                       );
+                                       Navigator.pop(context);
+                                     }
+                                   } catch (e) {
+                                     if (mounted) {
+                                       ScaffoldMessenger.of(context).showSnackBar(
+                                         SnackBar(
+                                           content: Text('Error: $e'),
+                                           backgroundColor: Colors.red,
+                                           duration: const Duration(seconds: 2),
+                                         ),
+                                       );
+                                     }
+                                   }
+                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue[900],
                                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -368,95 +350,146 @@ class _MyAnimalsPageState extends State<MyAnimalsPage> {
                          );
                        }
 
-                       // Animal Cards from Firestore
-                       final doc = docs[index - 1];
-                       final petData = doc.data() as Map<String, dynamic>;
-                       final petId = doc.id;
+                        // Animal Cards from Firestore
+                        final doc = docs[index - 1];
+                        final petData = doc.data() as Map<String, dynamic>;
+                        final petId = doc.id;
 
-                       return MouseRegion(
-                         cursor: SystemMouseCursors.click,
-                         child: GestureDetector(
-                           onTap: () {
-                             // Navigate to AnimalDetailsPage with Firestore data
-                             Navigator.push(
-                               context,
-                               MaterialPageRoute(
-                                 builder: (context) => AnimalDetailsPage(
-                                   animal: petData,
-                                   petId: petId,
-                                 ),
-                               ),
-                             );
-                           },
-                           child: Column(
-                             mainAxisAlignment: MainAxisAlignment.center,
-                             children: [
-                                Container(
-                                  width: 160,
-                                  height: 160,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.grey.shade300, width: 1),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: petData['imageUrl'] != null && petData['imageUrl'].toString().isNotEmpty
-                                        ? Image.network(
-                                            petData['imageUrl'],
-                                            fit: BoxFit.cover,
-                                            loadingBuilder: (context, child, loadingProgress) {
-                                              if (loadingProgress == null) return child;
-                                              return const Center(
-                                                child: CircularProgressIndicator(),
-                                              );
-                                            },
-                                            errorBuilder: (context, error, stackTrace) {
-                                              return Center(
-                                                child: Container(
-                                                  width: 110,
-                                                  height: 110,
-                                                  decoration: const BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: Colors.grey,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.pets,
-                                                    size: 56,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          )
-                                        : Center(
-                                            child: Container(
-                                              width: 110,
-                                              height: 110,
-                                              decoration: const BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                color: Colors.grey,
-                                              ),
-                                              child: const Icon(
-                                                Icons.pets,
-                                                size: 56,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
+                        return MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () {
+                              // Navigate to AnimalDetailsPage with Firestore data
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AnimalDetailsPage(
+                                    animal: petData,
+                                    petId: petId,
                                   ),
                                 ),
-                               const SizedBox(height: 12),
-                               Text(
-                                 petData['name'] ?? 'Unknown',
-                                 style: const TextStyle(
-                                   fontWeight: FontWeight.bold,
-                                   fontSize: 16,
-                                 ),
-                               ),
-                             ],
-                           ),
-                         ),
-                       );
+                              );
+                            },
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Stack(
+                                  children: [
+                                    Container(
+                                      width: 160,
+                                      height: 160,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: Colors.grey.shade300, width: 1),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Center(
+                                          child: Container(
+                                            width: 110,
+                                            height: 110,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.grey,
+                                            ),
+                                            child: const Icon(
+                                              Icons.pets,
+                                              size: 56,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    // Delete Button
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: MouseRegion(
+                                        cursor: SystemMouseCursors.click,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            // Show delete confirmation dialog
+                                            showDialog(
+                                              context: context,
+                                              builder: (dialogContext) => AlertDialog(
+                                                title: const Text('Delete Animal'),
+                                                content: Text('Are you sure you want to delete ${petData['name']}?'),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(dialogContext),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () async {
+                                                      try {
+                                                        await _databaseService.deletePet(petId);
+                                                        if (mounted) {
+                                                          Navigator.pop(dialogContext);
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text('Animal deleted successfully!'),
+                                                              backgroundColor: Colors.green,
+                                                              duration: Duration(seconds: 2),
+                                                            ),
+                                                          );
+                                                        }
+                                                      } catch (e) {
+                                                        if (mounted) {
+                                                          Navigator.pop(dialogContext);
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text('Error: $e'),
+                                                              backgroundColor: Colors.red,
+                                                              duration: const Duration(seconds: 2),
+                                                            ),
+                                                          );
+                                                        }
+                                                      }
+                                                    },
+                                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                          child: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.red,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.3),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.delete,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  petData['name'] ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
                      },
                    );
                  },

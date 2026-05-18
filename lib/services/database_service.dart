@@ -103,16 +103,77 @@ class DatabaseService {
     }
   }
 
-  /// Delete image from Firebase Storage
-  Future<void> deleteImage(String imageUrl) async {
-    try {
-      if (imageUrl.isEmpty) return;
-      
-      final ref = FirebaseStorage.instance.refFromURL(imageUrl);
-      await ref.delete();
-    } catch (e) {
-      throw Exception('Failed to delete image: $e');
-    }
-  }
+   /// Delete image from Firebase Storage
+   Future<void> deleteImage(String imageUrl) async {
+     try {
+       if (imageUrl.isEmpty) return;
+
+       final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+       await ref.delete();
+     } catch (e) {
+       throw Exception('Failed to delete image: $e');
+     }
+   }
+
+   /// Add a machine to a pet
+   Future<void> addMachine({
+     required String petId,
+     required String machineName,
+     required String machineType,
+   }) async {
+     try {
+       await _firestore
+           .collection(petsCollection)
+           .doc(petId)
+           .collection('machines')
+           .add({
+         'name': machineName,
+         'type': machineType,
+         'createdAt': FieldValue.serverTimestamp(),
+       });
+     } catch (e) {
+       throw Exception('Failed to add machine: $e');
+     }
+   }
+
+   /// Get machines for a pet as a Stream for real-time updates
+   Stream<QuerySnapshot> getMachinesStream(String petId) {
+     try {
+       return _firestore
+           .collection(petsCollection)
+           .doc(petId)
+           .collection('machines')
+           .orderBy('createdAt', descending: true)
+           .snapshots();
+     } catch (e) {
+       throw Exception('Failed to get machines: $e');
+     }
+   }
+
+   /// Delete a machine from a pet
+   Future<void> deleteMachine(String petId, String machineId) async {
+     try {
+       await _firestore
+           .collection(petsCollection)
+           .doc(petId)
+           .collection('machines')
+           .doc(machineId)
+           .delete();
+     } catch (e) {
+       throw Exception('Failed to delete machine: $e');
+     }
+   }
+
+   /// Get all available machines as a Stream for real-time updates
+   Stream<QuerySnapshot> getAvailableMachinesStream() {
+     try {
+       return _firestore
+           .collection('machines')
+           .orderBy('createdAt', descending: true)
+           .snapshots();
+     } catch (e) {
+       throw Exception('Failed to get available machines: $e');
+     }
+   }
 }
 
